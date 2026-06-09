@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Very Light Off-White for clean minimalist look */
+    --background: 40 20% 98%;
+    --foreground: 164 37% 14%; /* Dark Green */
+
+    --card: 0 0% 100%;
+    --card-foreground: 164 37% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 164 37% 14%;
+
+    /* Dark Green #163029 */
+    --primary: 164 37% 14%;
+    --primary-foreground: 45 18% 78%; /* Warm Beige */
+
+    /* Warm Beige #d1ccbd */
+    --secondary: 45 18% 78%;
+    --secondary-foreground: 164 37% 14%;
+
+    /* Light beige for muted elements */
+    --muted: 45 20% 92%;
+    --muted-foreground: 25 23% 30%; /* Earth Brown */
+
+    /* Earth Brown #5f4b3c */
+    --accent: 25 23% 30%;
+    --accent-foreground: 45 18% 78%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 45 20% 88%;
+    --input: 45 20% 88%;
+    --ring: 164 37% 14%;
+
+    /* Terracotta #c97d31 */
+    --brand: 30 61% 49%;
+    --brand-foreground: 0 0% 100%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
