@@ -18,6 +18,8 @@ import { useAuth } from '@/hooks/use-auth'
 import { Link } from 'react-router-dom'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { usePdfBlob } from '@/hooks/use-pdf-blob'
+import { PdfCanvasViewer } from '@/components/pdf/PdfCanvasViewer'
+import { usePdfViewer } from '@/contexts/PdfViewerContext'
 
 interface PdfViewerModalProps {
   isOpen: boolean
@@ -35,6 +37,7 @@ export function PdfViewerModal({
   const [zoom, setZoom] = useState(100)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const { setIsPdfViewerActive } = usePdfViewer()
 
   const pdfUrl = getPdfUrl(pdfRecord)
   const {
@@ -42,9 +45,6 @@ export function PdfViewerModal({
     loading: pdfLoading,
     error: pdfError,
   } = usePdfBlob(isOpen ? pdfUrl : '')
-  const iframeSrc = pdfBlobUrl
-    ? `${pdfBlobUrl}#page=${page}&toolbar=0&navpanes=0&scrollbar=0${zoom === 100 ? '&view=Fit' : `&zoom=${zoom}`}`
-    : ''
 
   useEffect(() => {
     if (isOpen) {
@@ -52,7 +52,10 @@ export function PdfViewerModal({
       setZoom(100)
       setSearchQuery('')
     }
-  }, [isOpen])
+    setIsPdfViewerActive(isOpen)
+
+    return () => setIsPdfViewerActive(false)
+  }, [isOpen, setIsPdfViewerActive])
 
   const indexItems = Array.isArray(pdfRecord.indice_json)
     ? pdfRecord.indice_json
@@ -249,21 +252,16 @@ export function PdfViewerModal({
                     Erro ao carregar documento seguro.
                   </p>
                 </div>
-              ) : iframeSrc ? (
+              ) : pdfBlobUrl ? (
                 <div
-                  className="w-full h-full min-w-full overflow-auto touch-pan-x touch-pan-y"
+                  className="w-full h-full min-w-full overflow-auto touch-pan-x touch-pan-y flex justify-center items-start"
                   style={{
                     width: zoom > 100 ? `${zoom}%` : '100%',
                     height: zoom > 100 ? `${zoom}%` : '100%',
                     maxWidth: zoom > 100 ? 'none' : '100%',
                   }}
                 >
-                  <iframe
-                    src={iframeSrc.replace('view=Fit', 'view=FitH')}
-                    className="w-full h-full min-w-full flex-1 border-0"
-                    title={`Catálogo ${pdfRecord.titulo}`}
-                    style={{ objectFit: 'contain', maxWidth: '100%' }}
-                  />
+                  <PdfCanvasViewer url={pdfBlobUrl} page={page} mode="single" />
                 </div>
               ) : null}
 

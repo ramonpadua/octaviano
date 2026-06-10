@@ -14,10 +14,11 @@ export interface PdfRecord extends RecordModel {
 
 export const getPdfsByType = async (tipo: string, options: any = {}) => {
   try {
-    return await pb.collection('pdfs').getFullList<PdfRecord>({
+    const res = await pb.collection('pdfs').getFullList<PdfRecord>({
       filter: `tipo="${tipo}"`,
       ...options,
     })
+    return res || []
   } catch (err: any) {
     console.error('Error in getPdfsByType:', err)
     return []
@@ -39,9 +40,18 @@ export const getPdfsPaginated = async (
   options: any = {},
 ) => {
   try {
-    return await pb
+    const res = await pb
       .collection('pdfs')
       .getList<PdfRecord>(page, perPage, options)
+    return (
+      res || {
+        page,
+        perPage,
+        totalItems: 0,
+        totalPages: 0,
+        items: [] as PdfRecord[],
+      }
+    )
   } catch (err: any) {
     console.error('Error in getPdfsPaginated:', err)
     return {

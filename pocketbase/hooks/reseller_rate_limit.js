@@ -1,4 +1,6 @@
 onRecordCreateRequest((e) => {
+  if (!e.request) return e.next()
+
   const ip = (e.request.remoteAddr || '').split(':')[0]
   if (ip) {
     e.record.set('ip_address', ip)

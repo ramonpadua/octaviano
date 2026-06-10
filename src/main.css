@@ -55,3 +55,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  body.pdf-viewer-active #skip-badge,
+  body.pdf-viewer-active .skip-badge,
+  body.pdf-viewer-active skip-badge,
+  body.pdf-viewer-active [data-skip-badge] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}

@@ -14,6 +14,10 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { usePdfBlob } from '@/hooks/use-pdf-blob'
+import { FileText } from 'lucide-react'
+import { PdfCanvasViewer } from '@/components/pdf/PdfCanvasViewer'
+import { useDeviceOrientation } from '@/hooks/use-device-orientation'
+import { usePdfViewer } from '@/contexts/PdfViewerContext'
 
 interface BookViewModalProps {
   isOpen: boolean
@@ -27,11 +31,16 @@ export function BookViewModal({
   pdfRecord,
 }: BookViewModalProps) {
   const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(100)
   const [animating, setAnimating] = useState(false)
   const [direction, setDirection] = useState<'next' | 'prev'>('next')
   const [isMobile, setIsMobile] = useState(false)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [zoom, setZoom] = useState(1)
+
+  const orientation = useDeviceOrientation()
+  const { setIsPdfViewerActive } = usePdfViewer()
+  const isFullscreen = isMobile && orientation === 'landscape'
 
   const pdfUrl = getPdfUrl(pdfRecord)
   const {
@@ -41,10 +50,12 @@ export function BookViewModal({
   } = usePdfBlob(isOpen ? pdfUrl : '')
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    const mql = window.matchMedia('(max-width: 768px)')
+    const checkMobile = () => setIsMobile(mql.matches)
     checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+
+    mql.addEventListener('change', checkMobile)
+    return () => mql.removeEventListener('change', checkMobile)
   }, [])
 
   useEffect(() => {
@@ -53,18 +64,25 @@ export function BookViewModal({
       setZoom(1)
       setAnimating(false)
     }
-  }, [isOpen])
+    setIsPdfViewerActive(isOpen)
+
+    return () => setIsPdfViewerActive(false)
+  }, [isOpen, setIsPdfViewerActive])
 
   const turnPage = (dir: 'next' | 'prev') => {
     if (animating) return
     if (dir === 'prev' && page <= 1) return
+    if (dir === 'next' && page >= totalPages) return
 
     setDirection(dir)
     setAnimating(true)
 
     setTimeout(() => {
       const step = isMobile ? 1 : 2
-      setPage((p) => (dir === 'next' ? p + step : Math.max(1, p - step)))
+      setPage((p) => {
+        const nextP = dir === 'next' ? p + step : Math.max(1, p - step)
+        return Math.min(nextP, totalPages)
+      })
       setAnimating(false)
     }, 300)
   }
@@ -90,30 +108,50 @@ export function BookViewModal({
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.5))
   const handleZoomReset = () => setZoom(1)
 
-  let leftPage = 0
-  let rightPage = 0
-  if (isMobile) {
-    leftPage = page
-    rightPage = 0
-  } else {
-    leftPage = page
-    rightPage = page + 1
-  }
-
-  const iframeParams = '#toolbar=0&navpanes=0&scrollbar=0&view=Fit'
+  let leftPage = page
 
   return (
     <DialogPrimitive.Root
       open={isOpen}
       onOpenChange={(open) => !open && onClose()}
     >
+      {isOpen && (
+        <style>{`
+          #skip-badge,
+          #goskip-badge,
+          .skip-badge,
+          [id^="skip-"],
+          iframe[src*="goskip.app"] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `}</style>
+      )}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[#163029]/95 backdrop-blur-sm animate-in fade-in-0 duration-200" />
+        <DialogPrimitive.Overlay
+          className={cn(
+            'fixed inset-0 z-50 backdrop-blur-sm animate-in fade-in-0 duration-200 transition-colors',
+            isFullscreen ? 'bg-black' : 'bg-[#163029]/95',
+          )}
+        />
         <DialogPrimitive.Content
-          className="fixed inset-0 z-50 flex flex-col animate-in zoom-in-95 duration-200"
+          className={cn(
+            'fixed inset-0 z-50 flex flex-col animate-in zoom-in-95 duration-300 transition-all',
+            isFullscreen
+              ? 'w-screen h-screen bg-black rounded-none shadow-none max-w-none max-h-none'
+              : '',
+          )}
           aria-describedby="book-view-desc"
         >
-          <div className="flex items-center justify-between p-4 bg-transparent text-white gap-2 sm:gap-4 shrink-0 z-20 shadow-sm bg-gradient-to-b from-[#163029]/80 to-transparent">
+          <div
+            className={cn(
+              'flex items-center justify-between text-white gap-2 sm:gap-4 shrink-0 z-20 shadow-sm transition-all duration-300',
+              isFullscreen
+                ? 'p-2 bg-black/80 backdrop-blur-md absolute top-0 left-0 right-0'
+                : 'p-4 bg-transparent bg-gradient-to-b from-[#163029]/80 to-transparent',
+            )}
+          >
             <VisuallyHidden id="book-view-desc">
               <DialogPrimitive.Description>
                 Visualização do documento em formato de livro digital com
@@ -127,49 +165,79 @@ export function BookViewModal({
             </VisuallyHidden>
             <h2
               aria-hidden="true"
-              className="font-serif text-base sm:text-lg md:text-xl font-bold drop-shadow-md leading-tight flex-1 line-clamp-1"
+              className={cn(
+                'font-serif font-bold drop-shadow-md leading-tight flex-1 line-clamp-1 transition-all',
+                isFullscreen
+                  ? 'text-sm sm:text-base'
+                  : 'text-base sm:text-lg md:text-xl',
+              )}
             >
               {pdfRecord.titulo}
             </h2>
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0 bg-black/30 rounded-lg p-1 backdrop-blur-md border border-white/10">
+            <div
+              className={cn(
+                'flex items-center shrink-0 bg-black/30 rounded-lg p-1 backdrop-blur-md border border-white/10 transition-all',
+                isFullscreen ? 'gap-1 h-8' : 'gap-1 sm:gap-2',
+              )}
+            >
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleZoomOut}
                 disabled={zoom <= 0.5}
-                className="text-white hover:bg-white/20 h-11 w-11 sm:h-10 sm:w-10"
+                className={cn(
+                  'text-white hover:bg-white/20',
+                  isFullscreen ? 'h-6 w-6' : 'h-11 w-11 sm:h-10 sm:w-10',
+                )}
                 title="Reduzir Zoom"
               >
-                <ZoomOut className="w-5 h-5" />
+                <ZoomOut className={cn(isFullscreen ? 'w-3 h-3' : 'w-5 h-5')} />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleZoomReset}
-                className="text-white hover:bg-white/20 h-11 w-11 sm:h-10 sm:w-10"
+                className={cn(
+                  'text-white hover:bg-white/20',
+                  isFullscreen ? 'h-6 w-6' : 'h-11 w-11 sm:h-10 sm:w-10',
+                )}
                 title="Resetar Zoom"
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw
+                  className={cn(isFullscreen ? 'w-3 h-3' : 'w-5 h-5')}
+                />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleZoomIn}
                 disabled={zoom >= 3}
-                className="text-white hover:bg-white/20 h-11 w-11 sm:h-10 sm:w-10"
+                className={cn(
+                  'text-white hover:bg-white/20',
+                  isFullscreen ? 'h-6 w-6' : 'h-11 w-11 sm:h-10 sm:w-10',
+                )}
                 title="Aumentar Zoom"
               >
-                <ZoomIn className="w-5 h-5" />
+                <ZoomIn className={cn(isFullscreen ? 'w-3 h-3' : 'w-5 h-5')} />
               </Button>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <DialogPrimitive.Close asChild>
                 <Button
                   variant="ghost"
-                  className="text-white hover:bg-white/20 px-3 sm:px-4 h-11 sm:h-10 bg-black/20 backdrop-blur-md border border-white/10"
+                  className={cn(
+                    'text-white hover:bg-white/20 bg-black/20 backdrop-blur-md border border-white/10 transition-all',
+                    isFullscreen ? 'px-2 h-8' : 'px-3 sm:px-4 h-11 sm:h-10',
+                  )}
                 >
-                  <span className="hidden sm:inline">Fechar</span>
-                  <X className="w-6 h-6 sm:ml-2" />
+                  <span
+                    className={cn(isFullscreen ? 'hidden' : 'hidden sm:inline')}
+                  >
+                    Fechar
+                  </span>
+                  <X
+                    className={cn(isFullscreen ? 'w-4 h-4' : 'w-6 h-6 sm:ml-2')}
+                  />
                 </Button>
               </DialogPrimitive.Close>
             </div>
@@ -177,8 +245,9 @@ export function BookViewModal({
 
           <div
             className={cn(
-              'flex-1 relative w-full z-0 overflow-auto flex scroll-smooth',
+              'flex-1 relative w-full z-0 overflow-auto flex scroll-smooth transition-all duration-300',
               zoom === 1 ? 'touch-none' : '',
+              isFullscreen ? 'bg-black pt-12' : '',
             )}
             onTouchStart={zoom === 1 ? handleTouchStart : undefined}
             onTouchEnd={zoom === 1 ? handleTouchEnd : undefined}
@@ -198,66 +267,39 @@ export function BookViewModal({
               </div>
             ) : (
               <div className="absolute inset-0 overflow-auto flex p-0 sm:p-8 w-full max-w-full touch-pan-x touch-pan-y">
-                <div
-                  className="m-auto flex items-center justify-center transition-all duration-300 ease-in-out w-full"
-                  style={{
-                    width: isMobile
-                      ? zoom > 1
-                        ? `calc(100% * ${zoom})`
-                        : '100%'
-                      : `calc(100% * ${zoom})`,
-                    height: isMobile
-                      ? zoom > 1
-                        ? `calc(100% * ${zoom})`
-                        : '100%'
-                      : `calc(100% * ${zoom})`,
-                    minWidth: isMobile ? '100%' : `calc(100% * ${zoom})`,
-                    maxWidth: zoom > 1 ? 'none' : '100%',
-                  }}
-                >
+                {pdfBlobUrl && (
                   <div
-                    className="relative flex shadow-2xl bg-white rounded-lg mx-auto"
+                    className="m-auto flex items-center justify-center transition-all duration-300 ease-in-out w-full"
                     style={{
-                      width: isMobile ? '100%' : '10000px',
+                      width: isMobile
+                        ? zoom > 1
+                          ? `calc(100% * ${zoom})`
+                          : '100%'
+                        : `calc(100% * ${zoom})`,
+                      height: isMobile
+                        ? zoom > 1
+                          ? `calc(100% * ${zoom})`
+                          : '100%'
+                        : `calc(100% * ${zoom})`,
+                      minWidth: isMobile ? '100%' : `calc(100% * ${zoom})`,
                       maxWidth: zoom > 1 ? 'none' : '100%',
-                      maxHeight: zoom > 1 ? 'none' : '100%',
-                      aspectRatio: isMobile ? '1 / 1.414' : '2 / 1.414',
                     }}
                   >
-                    {!isMobile && (
-                      <div className="flex-1 relative overflow-hidden border-r border-gray-300/50 rounded-l-lg bg-white">
-                        <iframe
-                          key={`left-${leftPage}`}
-                          src={`${pdfBlobUrl}${iframeParams}&page=${leftPage}`}
-                          className={cn(
-                            'absolute inset-0 w-full h-full border-0 pointer-events-none transition-opacity duration-300',
-                            animating ? 'opacity-0' : 'opacity-100',
-                          )}
-                          title="Página Esquerda"
-                        />
-                      </div>
-                    )}
-
                     <div
                       className={cn(
-                        'flex-1 relative overflow-hidden bg-white',
-                        isMobile ? 'rounded-lg' : 'rounded-r-lg',
+                        'relative flex shadow-2xl bg-white rounded-lg mx-auto w-full transition-opacity duration-300',
+                        animating ? 'opacity-0' : 'opacity-100',
                       )}
                     >
-                      {rightPage > 0 || isMobile ? (
-                        <iframe
-                          key={`right-${isMobile ? leftPage : rightPage}`}
-                          src={`${pdfBlobUrl}${iframeParams}&page=${isMobile ? leftPage : rightPage}`}
-                          className={cn(
-                            'absolute inset-0 w-full h-full border-0 pointer-events-none transition-opacity duration-300',
-                            animating ? 'opacity-0' : 'opacity-100',
-                          )}
-                          title="Página Direita"
-                        />
-                      ) : null}
+                      <PdfCanvasViewer
+                        url={pdfBlobUrl}
+                        page={leftPage}
+                        mode={isMobile ? 'single' : 'spread'}
+                        onLoad={(num) => setTotalPages(num)}
+                      />
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -288,33 +330,68 @@ export function BookViewModal({
           </div>
 
           {isMobile && !pdfLoading && !pdfError && (
-            <div className="flex items-center justify-between w-full max-w-[280px] mx-auto mb-4 gap-4 z-20 shrink-0">
+            <div
+              className={cn(
+                'flex items-center justify-between z-20 shrink-0 transition-all duration-300',
+                isFullscreen
+                  ? 'fixed bottom-2 right-2 gap-2 bg-black/50 p-1.5 rounded-full backdrop-blur-md shadow-lg'
+                  : 'w-full max-w-[280px] mx-auto mb-4 gap-4',
+              )}
+            >
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => turnPage('prev')}
                 disabled={page <= 1}
-                className="w-14 h-14 rounded-full bg-black/60 hover:bg-black/80 border-white/30 text-white backdrop-blur-md disabled:opacity-30 disabled:hover:bg-black/60 shrink-0 shadow-lg"
+                className={cn(
+                  'rounded-full text-white backdrop-blur-md disabled:opacity-30 shadow-lg shrink-0 transition-all',
+                  isFullscreen
+                    ? 'w-10 h-10 bg-transparent border-transparent hover:bg-white/20 disabled:hover:bg-transparent'
+                    : 'w-14 h-14 bg-black/60 hover:bg-black/80 border-white/30 disabled:hover:bg-black/60',
+                )}
                 title="Anterior"
               >
-                <ChevronLeft className="w-8 h-8" />
+                <ChevronLeft
+                  className={cn(isFullscreen ? 'w-6 h-6' : 'w-8 h-8')}
+                />
               </Button>
-              <span className="text-white font-medium bg-black/60 px-5 py-2.5 rounded-full backdrop-blur-md shadow-lg text-sm">
+              <span
+                className={cn(
+                  'text-white font-medium transition-all',
+                  isFullscreen
+                    ? 'text-xs px-2'
+                    : 'bg-black/60 px-5 py-2.5 rounded-full backdrop-blur-md shadow-lg text-sm',
+                )}
+              >
                 Pág {page}
               </span>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => turnPage('next')}
-                className="w-14 h-14 rounded-full bg-black/60 hover:bg-black/80 border-white/30 text-white backdrop-blur-md shrink-0 shadow-lg"
+                className={cn(
+                  'rounded-full text-white backdrop-blur-md shadow-lg shrink-0 transition-all',
+                  isFullscreen
+                    ? 'w-10 h-10 bg-transparent border-transparent hover:bg-white/20'
+                    : 'w-14 h-14 bg-black/60 hover:bg-black/80 border-white/30',
+                )}
                 title="Próximo"
               >
-                <ChevronRight className="w-8 h-8" />
+                <ChevronRight
+                  className={cn(isFullscreen ? 'w-6 h-6' : 'w-8 h-8')}
+                />
               </Button>
             </div>
           )}
 
-          <div className="p-2 sm:p-4 text-center text-white/80 text-xs sm:text-sm flex justify-center items-center gap-4 shrink-0 z-10 bg-gradient-to-t from-[#163029]/80 to-transparent">
+          <div
+            className={cn(
+              'text-center text-white/80 text-xs sm:text-sm flex justify-center items-center shrink-0 z-10 transition-all duration-300',
+              isFullscreen
+                ? 'h-0 opacity-0 overflow-hidden'
+                : 'p-2 sm:p-4 gap-4 opacity-100 bg-gradient-to-t from-[#163029]/80 to-transparent',
+            )}
+          >
             <span>Use os botões laterais ou arraste para virar as páginas</span>
           </div>
         </DialogPrimitive.Content>

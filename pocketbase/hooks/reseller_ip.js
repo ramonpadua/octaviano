@@ -1,7 +1,9 @@
 onRecordCreateRequest(
   (e) => {
+    if (!e.request) return e.next()
+
     try {
-      let ip = e.request?.remoteAddr || ''
+      let ip = e.request.remoteAddr || ''
       if (ip.includes(':')) {
         if (ip.startsWith('[')) {
           ip = ip.substring(1, ip.indexOf(']'))

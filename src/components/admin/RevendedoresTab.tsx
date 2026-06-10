@@ -94,9 +94,9 @@ export function RevendedoresTab() {
           ...(filterString ? { filter: filterString } : {}),
           sort: '-created',
         })
-        setLeads(data.items)
-        setTotalItems(data.totalItems)
-        setTotalPages(data.totalPages)
+        setLeads(data.items || [])
+        setTotalItems(data.totalItems || 0)
+        setTotalPages(data.totalPages || 1)
       } catch (err) {
         console.error(err)
         if (!isSilent) setIsError(true)
@@ -297,7 +297,7 @@ export function RevendedoresTab() {
               <RefreshCw className="mr-2 h-4 w-4" /> Tentar Novamente
             </Button>
           </div>
-        ) : leads.length === 0 ? (
+        ) : !leads?.length ? (
           <div className="text-center py-16 space-y-4 flex flex-col items-center border rounded-xl bg-card/50">
             <div className="p-4 bg-muted rounded-full">
               <Inbox className="h-12 w-12 text-muted-foreground opacity-60" />

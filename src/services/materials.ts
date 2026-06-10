@@ -2,7 +2,8 @@ import pb from '@/lib/pocketbase/client'
 
 export const getMaterials = async () => {
   try {
-    return await pb.collection('materials').getFullList()
+    const res = await pb.collection('materials').getFullList()
+    return res || []
   } catch (error) {
     console.error('Error fetching materials:', error)
     return []
@@ -11,7 +12,8 @@ export const getMaterials = async () => {
 
 export const getAllMaterials = async () => {
   try {
-    return await pb.collection('materials').getFullList()
+    const res = await pb.collection('materials').getFullList()
+    return res || []
   } catch (error) {
     console.error('Error fetching all materials:', error)
     return []

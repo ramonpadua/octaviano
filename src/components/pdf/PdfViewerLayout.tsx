@@ -3,11 +3,22 @@ import { getPdfUrl, type PdfRecord } from '@/services/pdfs'
 import { usePdfBlob } from '@/hooks/use-pdf-blob'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { BookOpen, Download, FileText, Plus } from 'lucide-react'
+import {
+  BookOpen,
+  Download,
+  FileText,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { BookViewModal } from '@/components/pdf/BookViewModal'
+import { PdfCanvasViewer } from '@/components/pdf/PdfCanvasViewer'
 import logoSensatio from '@/assets/logomarca-sensatio-3d-sem-fundo-branco-a9ada.png'
 import { PdfUploadDialog } from '@/components/admin/PdfUploadDialog'
 import { useAuth } from '@/hooks/use-auth'
+import { useDeviceOrientation } from '@/hooks/use-device-orientation'
+import { cn } from '@/lib/utils'
+import { usePdfViewer } from '@/contexts/PdfViewerContext'
 
 interface PdfViewerLayoutProps {
   title: string
@@ -39,8 +50,20 @@ export function PdfViewerLayout({
   const [currentPage, setCurrentPage] = useState(1)
   const [isBookViewOpen, setIsBookViewOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const { user } = useAuth()
+  const orientation = useDeviceOrientation()
+  const [isMobile, setIsMobile] = useState(false)
+  const { setIsPdfViewerActive } = usePdfViewer()
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 768px)')
+    const checkMobile = () => setIsMobile(mql.matches)
+    checkMobile()
+    mql.addEventListener('change', checkMobile)
+    return () => mql.removeEventListener('change', checkMobile)
+  }, [])
+
+  const isFullscreen = isMobile && orientation === 'landscape'
 
   const pdfUrl = activeDocument ? getPdfUrl(activeDocument) : ''
   const {
@@ -49,7 +72,7 @@ export function PdfViewerLayout({
     error: pdfBlobError,
   } = usePdfBlob(pdfUrl)
 
-  if (pdfBlobError) {
+  if (pdfBlobError && pdfUrl) {
     throw new Error(
       'Falha ao carregar o arquivo PDF. Verifique sua conexão ou desative bloqueadores de anúncios (adblockers).',
     )
@@ -57,18 +80,16 @@ export function PdfViewerLayout({
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [activeDocument?.id])
+    setIsPdfViewerActive(!!activeDocument)
+
+    return () => setIsPdfViewerActive(false)
+  }, [activeDocument?.id, setIsPdfViewerActive])
+
+  const [totalPages, setTotalPages] = useState(1)
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-    if (iframeRef.current && pdfBlobUrl) {
-      iframeRef.current.src = `${pdfBlobUrl}#page=${page}&toolbar=0&navpanes=0&scrollbar=0&view=Fit`
-    }
   }
-
-  const viewerUrl = pdfBlobUrl
-    ? `${pdfBlobUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0&view=Fit`
-    : ''
 
   return (
     <div className="flex flex-col flex-1 bg-[#f8f7f5] animate-fade-in-up w-full min-h-screen">
@@ -200,17 +221,103 @@ export function PdfViewerLayout({
             </div>
 
             {/* Right Panel - Reader */}
-            <div className="w-full lg:flex-1 flex flex-col h-[80vh] min-h-[400px] lg:h-auto lg:min-h-[700px] bg-white rounded-2xl shadow-xl overflow-hidden border border-[#163029]/10">
-              <div className="bg-[#163029] text-white px-4 py-3 flex justify-between items-center text-sm">
+            <div
+              className={cn(
+                'flex flex-col bg-white shadow-xl overflow-hidden border border-[#163029]/10 transition-all duration-300',
+                isFullscreen
+                  ? 'fixed inset-0 z-50 rounded-none border-none bg-black'
+                  : 'w-full lg:flex-1 h-[80vh] min-h-[400px] lg:h-auto lg:min-h-[700px] rounded-2xl',
+              )}
+            >
+              <div
+                className={cn(
+                  'bg-[#163029] text-white flex justify-between items-center text-sm transition-all duration-300 shrink-0',
+                  isFullscreen
+                    ? 'px-2 py-1 absolute top-0 left-0 right-0 z-20 bg-[#163029]/80 backdrop-blur-md'
+                    : 'px-4 py-3',
+                )}
+              >
                 <span className="font-medium flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#c97d31]" />
-                  Leitor Digital Avatim
+                  <span className="hidden sm:inline">
+                    {isFullscreen
+                      ? activeDocument.titulo
+                      : 'Leitor Digital Avatim'}
+                  </span>
                 </span>
-                <span className="text-white/80 font-medium">
-                  Página {currentPage}
-                </span>
+                {!isFullscreen && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="h-8 w-8 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </Button>
+                    <span className="text-white/90 font-medium min-w-[120px] text-center">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={currentPage >= totalPages}
+                      className="h-8 w-8 text-white hover:bg-white/20 hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="flex-1 w-full relative bg-[#f0f0f0] overflow-auto flex items-center justify-center">
+
+              {isFullscreen && !pdfLoading && !pdfBlobError && (
+                <div className="fixed bottom-2 right-2 gap-2 bg-black/50 p-1.5 rounded-full backdrop-blur-md shadow-lg flex items-center z-20">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="w-10 h-10 text-white hover:bg-white/20 disabled:opacity-50 rounded-full"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </Button>
+                  <span className="text-white font-medium text-xs px-2">
+                    Pág {currentPage}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={currentPage >= totalPages}
+                    className="w-10 h-10 text-white hover:bg-white/20 disabled:opacity-50 rounded-full"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </Button>
+                </div>
+              )}
+
+              <div
+                className={cn(
+                  'flex-1 w-full relative bg-[#f0f0f0] overflow-auto flex items-center justify-center transition-all duration-300',
+                  isFullscreen ? 'pt-8 bg-black' : '',
+                )}
+                style={
+                  isFullscreen
+                    ? {}
+                    : {
+                        aspectRatio: '1 / 1.414',
+                        minHeight: '100%',
+                        width: '100%',
+                        height: '100%',
+                      }
+                }
+              >
                 {pdfLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center text-[#5f4b3c]">
                     <div className="flex flex-col items-center gap-3">
@@ -220,17 +327,13 @@ export function PdfViewerLayout({
                       </p>
                     </div>
                   </div>
-                ) : viewerUrl ? (
-                  <iframe
-                    ref={iframeRef}
-                    src={viewerUrl.replace('view=Fit', 'view=FitH')}
-                    className="w-full h-full min-w-full border-0 m-0 p-0 block touch-pan-y touch-pan-x"
-                    title="Leitor PDF"
-                    style={{
-                      backgroundColor: 'transparent',
-                      minHeight: '100%',
-                      maxWidth: '100%',
-                    }}
+                ) : pdfBlobUrl ? (
+                  <PdfCanvasViewer
+                    url={pdfBlobUrl}
+                    page={currentPage}
+                    mode="single"
+                    onLoad={(num) => setTotalPages(num)}
+                    className="h-full w-full overflow-auto items-start"
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-[#5f4b3c]">
@@ -281,12 +384,14 @@ export function PdfViewerLayout({
                   <div className="relative w-full aspect-[1/1.414] bg-gray-50 flex items-center justify-center overflow-hidden border-b border-[#163029]/5">
                     {getPdfUrl(c) ? (
                       <>
-                        <iframe
-                          src={`${getPdfUrl(c)}#page=1&toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
-                          className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-                          tabIndex={-1}
-                          title={c.titulo}
-                        />
+                        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
+                          <PdfCanvasViewer
+                            url={getPdfUrl(c)}
+                            page={1}
+                            mode="single"
+                            className="w-full h-full opacity-90 object-cover"
+                          />
+                        </div>
                         <div className="absolute inset-0 z-10 bg-black/0 group-hover:bg-black/5 transition-colors" />
                       </>
                     ) : (

@@ -2,8 +2,12 @@ import { Link, Outlet } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { Header } from './Header'
 import logo from '@/assets/logo-sensatio-branca-a7f1f.png'
+import { usePdfViewer } from '@/contexts/PdfViewerContext'
+import { cn } from '@/lib/utils'
 
 export default function Layout() {
+  const { isPdfViewerActive } = usePdfViewer()
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground font-sans selection:bg-brand/20">
       <Header />
@@ -12,7 +16,12 @@ export default function Layout() {
       </main>
 
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 items-end">
+      <div
+        className={cn(
+          'fixed bottom-5 right-5 z-50 flex flex-col gap-3 items-end transition-opacity duration-300',
+          isPdfViewerActive && 'opacity-0 pointer-events-none',
+        )}
+      >
         <Link
           to="/seja-revendedor"
           className="flex items-center justify-center gap-2 bg-verde hover:bg-verde/90 text-white rounded-full shadow-lg transition-transform hover:scale-105 h-[50px] w-[50px] md:h-[60px] md:w-auto md:px-6 group"

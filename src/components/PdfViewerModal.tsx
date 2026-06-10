@@ -26,6 +26,8 @@ import { PdfRecord, getPdfUrl } from '@/services/pdfs'
 import { toast } from 'sonner'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { usePdfBlob } from '@/hooks/use-pdf-blob'
+import { PdfCanvasViewer } from '@/components/pdf/PdfCanvasViewer'
+import { usePdfViewer } from '@/contexts/PdfViewerContext'
 
 interface PdfViewerModalProps {
   pdf: PdfRecord | null
@@ -45,11 +47,13 @@ export function PdfViewerModal({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const viewerRef = useRef<HTMLDivElement>(null)
+  const [pdfTotalPages, setPdfTotalPages] = useState<number | null>(null)
 
   const [downloadCount, setDownloadCount] = useState(0)
   const [downloadTimer, setDownloadTimer] = useState<NodeJS.Timeout | null>(
     null,
   )
+  const { setIsPdfViewerActive } = usePdfViewer()
 
   useEffect(() => {
     if (open) {
@@ -59,7 +63,10 @@ export function PdfViewerModal({
       setLoading(true)
       setError(false)
     }
-  }, [open, pdf])
+    setIsPdfViewerActive(open)
+
+    return () => setIsPdfViewerActive(false)
+  }, [open, pdf, setIsPdfViewerActive])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
@@ -79,9 +86,10 @@ export function PdfViewerModal({
   )
 
   const totalPages =
-    indexJson.length > 0
+    pdfTotalPages ??
+    (indexJson.length > 0
       ? Math.max(...indexJson.map((i) => i.pagina)) + 10
-      : 100
+      : 100)
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -317,22 +325,22 @@ export function PdfViewerModal({
                 </div>
               ) : pdfBlobUrl ? (
                 <div
-                  className="w-full h-full min-w-full overflow-auto"
+                  className="w-full h-full min-w-full overflow-auto flex justify-center items-start"
                   style={{
                     width: zoom > 100 ? `${zoom}%` : '100%',
                     height: zoom > 100 ? `${zoom}%` : '100%',
+                    maxWidth: zoom > 100 ? 'none' : '100%',
                   }}
                 >
-                  <iframe
-                    src={`${pdfBlobUrl}#page=${page}&toolbar=0&navpanes=0&scrollbar=0${zoom === 100 ? '&view=Fit' : `&view=FitH`}`}
-                    className={`w-full h-full min-w-full border-none transition-opacity duration-300 ${loading && !pdfBlobLoading ? 'opacity-0' : 'opacity-100'}`}
-                    style={{ objectFit: 'contain' }}
-                    onLoad={() => setLoading(false)}
-                    onError={() => {
+                  <PdfCanvasViewer
+                    url={pdfBlobUrl}
+                    page={page}
+                    mode="single"
+                    onLoad={(num) => {
+                      setPdfTotalPages(num)
                       setLoading(false)
-                      setError(true)
                     }}
-                    title={pdf?.titulo || 'Documento PDF'}
+                    className={`transition-opacity duration-300 ${loading && !pdfBlobLoading ? 'opacity-0' : 'opacity-100'}`}
                   />
                 </div>
               ) : (

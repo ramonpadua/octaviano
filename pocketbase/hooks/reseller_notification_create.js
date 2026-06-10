@@ -1,5 +1,7 @@
 onRecordAfterCreateSuccess((e) => {
   try {
+    if (!e || !e.record) return e.next()
+
     const record = e.record
     const resendApiKey = $secrets.get('RESEND_API_KEY')
 

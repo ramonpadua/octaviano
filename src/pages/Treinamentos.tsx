@@ -14,9 +14,9 @@ export default function TreinamentosPage() {
     async function fetchData() {
       try {
         const pdts = await getPdfsByType('treinamento')
-        const valid = pdts.filter((c) => c.arquivo !== '')
+        const valid = (pdts || []).filter((c) => c.arquivo !== '')
         setDocuments(valid)
-        setActiveDoc(valid[0] || null)
+        setActiveDoc(valid.length > 0 ? valid[0] : null)
       } catch (err) {
         console.error('Error fetching treinamentos:', err)
         setError(true)
